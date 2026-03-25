@@ -69,6 +69,15 @@ class UpdateFieldResponse(BaseModel):
     message: str
 
 
+class UpdatePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=6, max_length=128)
+    new_password: str = Field(min_length=6, max_length=128)
+
+
+class UpdatePasswordResponse(BaseModel):
+    message: str
+
+
 class SimulationData(BaseModel):
     nome: str = Field(min_length=2, max_length=120)
     data_nascimento: str = Field(min_length=8, max_length=20)

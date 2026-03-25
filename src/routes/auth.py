@@ -14,6 +14,8 @@ from src.schemas import (
     ForgotPasswordResponse,
     UpdateFieldRequest,
     UpdateFieldResponse,
+    UpdatePasswordRequest,
+    UpdatePasswordResponse,
     LoginRequest,
     LoginResponse,
     MeResponse,
@@ -26,13 +28,17 @@ from src.schemas import (
 
 router = APIRouter()
 
-DEFAULT_PHOTO = "https://juca.eu.org/img/icon_dafault.jpg"
 VALID_DEVICES = {10, 20}
 API_KEY_MAX_ATTEMPTS = 10
 DEFAULT_SOCIAL_ORIGIN = 90
 SOCIAL_PHONE_MAX_ATTEMPTS = 10
 SMTP_URL = "https://smtp.josuejuca.com/imogoSenha"
 TEMP_PASSWORD_BYTES = 5
+
+
+def build_avatar_url(name: str) -> str:
+    """Build avatar URL dynamically based on user name."""
+    return f"https://ui-avatars.com/api/?name={name}&background=730d83&color=fff&size=500&font-size=0.5&length=1&rounded=true&bold=true"
 
 
 def build_public_id(device: int, user_id: int) -> str:
@@ -93,7 +99,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> Registe
         raise HTTPException(status_code=409, detail="phone already registered")
 
     user = User(
-        photo=DEFAULT_PHOTO,
+        photo=build_avatar_url(payload.name),
         phone=payload.phone,
         email=payload.email.lower(),
         name=payload.name,
@@ -152,7 +158,7 @@ def social_auth(payload: SocialAuthRequest, db: Session = Depends(get_db)) -> So
     user = db.query(User).filter(User.email == email).first()
     if not user:
         user = User(
-            photo=payload.photo_url or DEFAULT_PHOTO,
+            photo=payload.photo_url or build_avatar_url(payload.name),
             phone=build_unique_social_phone(db),
             email=email,
             name=payload.name,
@@ -295,3 +301,21 @@ def update_field(
 
     db.commit()
     return UpdateFieldResponse(message="updated")
+
+
+@router.post("/update-password", response_model=UpdatePasswordResponse, status_code=status.HTTP_200_OK)
+def update_password(
+    payload: UpdatePasswordRequest,
+    db: Session = Depends(get_db),
+    api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> UpdatePasswordResponse:
+    user = get_user_from_api_key(db, api_key)
+
+    if not verify_password(payload.current_password, user.password):
+        raise HTTPException(status_code=401, detail="current password is incorrect")
+
+    user.password = hash_password(payload.new_password)
+    db.commit()
+
+    return UpdatePasswordResponse(message="password updated successfully")
+
